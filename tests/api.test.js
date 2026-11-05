@@ -1,0 +1,9 @@
+import {it,expect,vi,afterEach} from 'vitest';
+import handler from '../api/functions.js';
+const response=()=>({setHeader:vi.fn(),status:vi.fn().mockReturnThis(),json:vi.fn().mockReturnThis()});
+afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs();});
+it('rechaza GET',async()=>{const res=response();await handler({method:'GET'},res);expect(res.status).toHaveBeenCalledWith(405);});
+it('rechaza un historial inválido antes de contactar Gemini',async()=>{const res=response();const fetcher=vi.fn();vi.stubGlobal('fetch',fetcher);await handler({method:'POST',body:{messages:[]}},res);expect(res.status).toHaveBeenCalledWith(400);expect(fetcher).not.toHaveBeenCalled();});
+it('informa la falta de configuración',async()=>{vi.stubEnv('GEMINI_API_KEY','');const res=response();await handler({method:'POST',body:{messages:[{role:'user',text:'Hola'}]}},res);expect(res.status).toHaveBeenCalledWith(503);});
+it('envía el prompt desde el servidor y devuelve solo texto',async()=>{vi.stubEnv('GEMINI_API_KEY','test-only');const fetcher=vi.fn().mockResolvedValue({ok:true,status:200,json:async()=>({candidates:[{content:{parts:[{text:'La Fuerza te espera.'}]}}]})});vi.stubGlobal('fetch',fetcher);const res=response();await handler({method:'POST',body:{messages:[{role:'user',text:'Hola'}]}},res);expect(res.json).toHaveBeenCalledWith({text:'La Fuerza te espera.'});expect(JSON.parse(fetcher.mock.calls[0][1].body).systemInstruction.parts[0].text).toContain('Darth Vader');});
+it('traduce rate limit sin filtrar detalles internos',async()=>{vi.stubEnv('GEMINI_API_KEY','test-only');vi.stubGlobal('fetch',vi.fn().mockResolvedValue({status:429}));const res=response();await handler({method:'POST',body:{messages:[{role:'user',text:'Hola'}]}},res);expect(res.status).toHaveBeenCalledWith(429);expect(res.setHeader).toHaveBeenCalledWith('Retry-After','60');});
