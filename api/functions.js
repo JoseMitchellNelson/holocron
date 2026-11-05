@@ -55,13 +55,22 @@ export default async function handler(req, res) {
             "Frecuencia o cuota excedida. Espera un minuto e inténtalo de nuevo.",
         });
     }
-    if (!response.ok)
-      return res
-        .status(502)
-        .json({
-          error:
-            "No se pudo contactar con Gemini. Revisa la configuración del servidor.",
-        });
+    if (!response.ok) {
+  const messages = {
+    400: 'Gemini rechazó la solicitud: revisa la clave y los parámetros.',
+    401: 'Gemini rechazó la autenticación: revisa la API key.',
+    403: 'Gemini denegó el acceso: revisa los permisos de la clave y del proyecto.',
+    404: 'Gemini no encontró el modelo solicitado.',
+    500: 'Gemini presentó un error interno.',
+    503: 'Gemini no está disponible temporalmente.'
+  };
+
+  return res.status(502).json({
+    error: `Gemini ${response.status}: ${
+      messages[response.status] || 'Error del proveedor.'
+    }`
+  });
+}
     const data = await response.json();
     try {
       return res.status(200).json({ text: parseGemini(data) });
